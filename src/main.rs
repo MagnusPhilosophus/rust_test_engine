@@ -2,8 +2,9 @@ extern crate glfw;
 extern crate gl;
 
 use glfw::{Action, Context, Key};
-use std::fs;
-use std::ffi::CString;
+mod render_gl;
+use crate::render_gl::*;
+use cgmath::{Deg, Matrix, Vector3, Matrix4, Point3, PerspectiveFov};
 
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 600;
@@ -71,13 +72,66 @@ fn main() {
     // Create a shader program and link the compiled shaders
     let shader_program = link_program(vertex_shader, fragment_shader);
 
+    // Define the model matrix (transforms from model space to world space)
+    let model_matrix = Matrix4::from_translation(Vector3::new(0.0, 0.0, -5.0));
+
+    // Define the view matrix (transforms from world space to camera/view space)
+    let eye = Point3::new(0.0, 0.0, 0.0); // camera position
+    let target = Point3::new(0.0, 0.0, -1.0); // where camera is looking
+    let up = Vector3::new(0.0, 1.0, 0.0); // up vector
+    let view_matrix = Matrix4::look_at_lh(eye, target, up);
+
+    // Define the projection matrix (transforms from view space to clip space)
+    let aspect_ratio = 800.0 / 600.0;
+    let fov = Deg(60.0);
+    let near = 0.1;
+    let far = 100.0;
+    //let projection_matrix = cgmath::perspective(fov, aspect_ratio, near, far);
+    /*
+    let projection_matrix = Matrix4::from(PerspectiveFov::<f32> {
+        fovy: fov.into(),
+        aspect: aspect_ratio,
+        near,
+        far,
+    });
+    */
+    let projection_matrix = cgmath::perspective(
+        cgmath::Deg(60.0), // field of view
+        800.0 / 600.0,    // aspect ratio
+        0.1,               // near plane
+        100.0,             // far plane
+    );
+
+
+    let model_location = get_uniform_location(shader_program, "model");
+    let view_location = get_uniform_location(shader_program, "view");
+    let projection_location = get_uniform_location(shader_program, "projection");
+
+    let model_array: [f32; 16] = [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    ];
+    fn flatten_matrix(m: Matrix4<f32>) -> [f32; 16] {
+        [
+            m.x.x, m.y.x, m.z.x, m.w.x,
+            m.x.y, m.y.y, m.z.y, m.w.y,
+            m.x.z, m.y.z, m.z.z, m.w.z,
+            m.x.w, m.y.w, m.z.w, m.w.w,
+        ]
+    }
+        
+
     // Loop until the user closes the window
     while !window.should_close() {
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
-         unsafe {
+            gl::UniformMatrix4fv(model_location, 1, gl::FALSE, flatten_matrix(model_matrix).as_ptr());
+            gl::UniformMatrix4fv(view_location, 1, gl::FALSE, flatten_matrix(view_matrix).as_ptr());
+            gl::UniformMatrix4fv(projection_location, 1, gl::FALSE, model_array.as_ptr());
+
             gl::UseProgram(shader_program);
             gl::BindVertexArray(vao);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
@@ -97,77 +151,11 @@ fn main() {
             }
         }
     }
-}
-
-fn create_whitespace_cstring_with_len(len: usize) -> CString {
-    let mut buffer: Vec<u8> = Vec::with_capacity(len + 1);
-    buffer.extend([b' '].iter().cycle().take(len));
-    unsafe { CString::from_vec_unchecked(buffer) }
-}
-
-fn load_shader_source(path: &str) -> Result<String, std::io::Error> {
-    let source = fs::read_to_string(path)?;
-    Ok(source)
-}
-
-fn compile_shader(source: &str, shader_type: gl::types::GLuint) -> gl::types::GLuint {
-    let shader = unsafe { gl::CreateShader(shader_type) };
-    let c_str = CString::new(source.as_bytes()).unwrap();
-    unsafe {
-        gl::ShaderSource(shader, 1, &c_str.as_ptr(), std::ptr::null());
-        gl::CompileShader(shader);
-    }
-    let mut success: gl::types::GLint = 1;
-    unsafe {
-        gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
-    }
-    if success == 0 {
-        let mut len: gl::types::GLint = 0;
-        unsafe {
-            gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
-        }
-        let error = create_whitespace_cstring_with_len(len as usize);
-        unsafe {
-            gl::GetShaderInfoLog(
-                shader,
-                len,
-                std::ptr::null_mut(),
-                error.as_ptr() as *mut gl::types::GLchar,
-            );
-        }
-        panic!(
-            "Failed to compile shader:\n{}\n{}",
-            source,
-            error.to_string_lossy()
-        );
-    }
-    shader
-}
-
-// Link compiled shaders into a program and return a handle to the program
-fn link_program(vertex_shader: gl::types::GLuint, fragment_shader: gl::types::GLuint) -> gl::types::GLuint {
-    let shader_program;
 
     unsafe {
-        shader_program = gl::CreateProgram();
-        gl::AttachShader(shader_program, vertex_shader);
-        gl::AttachShader(shader_program, fragment_shader);
-        gl::LinkProgram(shader_program);
-
-        // Check for linking errors
-        let mut success = gl::FALSE as gl::types::GLint;
-        let mut log_length = 0;
-
-        gl::GetProgramiv(shader_program, gl::LINK_STATUS, &mut success);
-        gl::GetProgramiv(shader_program, gl::INFO_LOG_LENGTH, &mut log_length);
-
-        if log_length > 0 {
-            let error_msg = CString::new(vec![b' '; log_length as usize]).unwrap();
-            gl::GetProgramInfoLog(shader_program, log_length, std::ptr::null_mut(), error_msg.as_ptr() as *mut gl::types::GLchar);
-
-            println!("Shader program linking error: {:?}", error_msg);
-        }
+        gl::DeleteProgram(shader_program);
+        gl::DeleteVertexArrays(1, &vao);
+        gl::DeleteBuffers(1, &vbo);
     }
 
-    shader_program
 }
