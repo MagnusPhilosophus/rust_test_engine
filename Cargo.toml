@@ -10,6 +10,6 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
-cgmath = "0.18.0"
 gl = "0.14.0"
+glam = "0.23.0"
 glfw = "0.51.0"

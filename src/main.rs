@@ -4,7 +4,7 @@ extern crate gl;
 use glfw::{Action, Context, Key};
 mod render_gl;
 use crate::render_gl::*;
-use cgmath::{Deg, Matrix, Vector3, Matrix4, Point3, PerspectiveFov};
+use glam::*;
 
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 600;
@@ -73,34 +73,20 @@ fn main() {
     let shader_program = link_program(vertex_shader, fragment_shader);
 
     // Define the model matrix (transforms from model space to world space)
-    let model_matrix = Matrix4::from_translation(Vector3::new(0.0, 0.0, -5.0));
+    let model_matrix = Mat4::from_translation(Vec3::new(0.0, 0.0, -5.0));
 
     // Define the view matrix (transforms from world space to camera/view space)
-    let eye = Point3::new(0.0, 0.0, 0.0); // camera position
-    let target = Point3::new(0.0, 0.0, -1.0); // where camera is looking
-    let up = Vector3::new(0.0, 1.0, 0.0); // up vector
-    let view_matrix = Matrix4::look_at_lh(eye, target, up);
+    let eye = Vec3::new(0.0, 0.0, 0.0); // camera position
+    let target = Vec3::new(0.0, 0.0, -1.0); // where camera is looking
+    let up = Vec3::new(0.0, 1.0, 0.0); // up vector
+    let view_matrix = Mat4::look_at_rh(eye, target, up);
 
     // Define the projection matrix (transforms from view space to clip space)
     let aspect_ratio = 800.0 / 600.0;
-    let fov = Deg(60.0);
+    let fov = 1.0;
     let near = 0.1;
     let far = 100.0;
-    //let projection_matrix = cgmath::perspective(fov, aspect_ratio, near, far);
-    /*
-    let projection_matrix = Matrix4::from(PerspectiveFov::<f32> {
-        fovy: fov.into(),
-        aspect: aspect_ratio,
-        near,
-        far,
-    });
-    */
-    let projection_matrix = cgmath::perspective(
-        cgmath::Deg(60.0), // field of view
-        800.0 / 600.0,    // aspect ratio
-        0.1,               // near plane
-        100.0,             // far plane
-    );
+    let projection_matrix = Mat4::perspective_rh_gl(fov, aspect_ratio, near, far);
 
 
     let model_location = get_uniform_location(shader_program, "model");
@@ -113,14 +99,20 @@ fn main() {
         0.0, 0.0, 1.0, 0.0,
         0.0, 0.0, 0.0, 1.0
     ];
-    fn flatten_matrix(m: Matrix4<f32>) -> [f32; 16] {
-        [
-            m.x.x, m.y.x, m.z.x, m.w.x,
-            m.x.y, m.y.y, m.z.y, m.w.y,
-            m.x.z, m.y.z, m.z.z, m.w.z,
-            m.x.w, m.y.w, m.z.w, m.w.w,
-        ]
+
+    fn print_flat_mat4(mat: [f32; 16]){
+        for i in 0..4{
+            for j in 0..4{
+                print!("{}", mat[i*4 +j]);
+            }
+            println!("");
+        }
+        println!("");
     }
+    print_flat_mat4(model_array);
+    print_flat_mat4(model_matrix.to_cols_array());
+    print_flat_mat4(view_matrix.to_cols_array());
+    print_flat_mat4(projection_matrix.to_cols_array());
         
 
     // Loop until the user closes the window
@@ -128,9 +120,9 @@ fn main() {
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::UniformMatrix4fv(model_location, 1, gl::FALSE, flatten_matrix(model_matrix).as_ptr());
-            gl::UniformMatrix4fv(view_location, 1, gl::FALSE, flatten_matrix(view_matrix).as_ptr());
-            gl::UniformMatrix4fv(projection_location, 1, gl::FALSE, model_array.as_ptr());
+            gl::UniformMatrix4fv(model_location, 1, gl::FALSE, model_matrix.to_cols_array().as_ptr());
+            gl::UniformMatrix4fv(view_location, 1, gl::FALSE, view_matrix.to_cols_array().as_ptr());
+            gl::UniformMatrix4fv(projection_location, 1, gl::FALSE, projection_matrix.to_cols_array().as_ptr());
 
             gl::UseProgram(shader_program);
             gl::BindVertexArray(vao);
