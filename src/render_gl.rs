@@ -1,5 +1,5 @@
-use std::fs;
 use std::ffi::CString;
+use std::fs;
 
 pub fn create_whitespace_cstring_with_len(len: usize) -> CString {
     let mut buffer: Vec<u8> = Vec::with_capacity(len + 1);
@@ -47,7 +47,10 @@ pub fn compile_shader(source: &str, shader_type: gl::types::GLuint) -> gl::types
 }
 
 // Link compiled shaders into a program and return a handle to the program
-pub fn link_program(vertex_shader: gl::types::GLuint, fragment_shader: gl::types::GLuint) -> gl::types::GLuint {
+pub fn link_program(
+    vertex_shader: gl::types::GLuint,
+    fragment_shader: gl::types::GLuint,
+) -> gl::types::GLuint {
     let shader_program;
 
     unsafe {
@@ -65,7 +68,12 @@ pub fn link_program(vertex_shader: gl::types::GLuint, fragment_shader: gl::types
 
         if log_length > 0 {
             let error_msg = CString::new(vec![b' '; log_length as usize]).unwrap();
-            gl::GetProgramInfoLog(shader_program, log_length, std::ptr::null_mut(), error_msg.as_ptr() as *mut gl::types::GLchar);
+            gl::GetProgramInfoLog(
+                shader_program,
+                log_length,
+                std::ptr::null_mut(),
+                error_msg.as_ptr() as *mut gl::types::GLchar,
+            );
 
             println!("Shader program linking error: {:?}", error_msg);
         }
@@ -74,7 +82,7 @@ pub fn link_program(vertex_shader: gl::types::GLuint, fragment_shader: gl::types
     shader_program
 }
 
-pub fn get_uniform_location(shader_program: u32, location_name: &str) -> i32{
+pub fn get_uniform_location(shader_program: u32, location_name: &str) -> i32 {
     let location_name = CString::new(location_name).unwrap().into_raw();
-    unsafe {gl::GetUniformLocation(shader_program, location_name)}
+    unsafe { gl::GetUniformLocation(shader_program, location_name) }
 }
