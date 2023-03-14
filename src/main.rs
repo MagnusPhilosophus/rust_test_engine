@@ -12,6 +12,19 @@ use obj::Obj;
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 600;
 
+fn extract_indices(model: &Obj) -> Vec<u32> {
+    let mut data: Vec<u32> = vec![];
+    for poly in model.data.objects[0].groups[0].polys.clone() {
+        for index in &poly.0 {
+            println!("{:?}", index);
+            data.push(index.0 as u32);
+            data.push(index.1.unwrap() as u32);
+            data.push(index.2.unwrap() as u32);
+        }
+    }
+    data
+}
+
 fn main() {
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
     glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
@@ -39,8 +52,17 @@ fn main() {
         gl::Viewport(0, 0, WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32);
     }
 
-    let model = Obj::load("./src/assets/model.obj").unwrap();
-    let vertices: [f32; 9] = [-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
+    // Loading model
+    let model = Obj::load("./src/assets/model1.obj").unwrap();
+    //let indices = extract_indices(&model);
+    let vertices: [f32; 18] = [
+         0.5,  0.5, 0.0,  // top right
+         0.5, -0.5, 0.0,  // bottom right
+        -0.5,  0.5, 0.0,  // top left 
+         0.5, -0.5, 0.0,  // bottom right
+        -0.5, -0.5, 0.0,  // bottom left
+        -0.5,  0.5, 0.0,   // top left
+    ];
 
     // Create a Vertex Buffer Object (VBO) and Vertex Array Object (VAO) for the triangle
     let mut vbo = 0;
@@ -54,6 +76,8 @@ fn main() {
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
         gl::BufferData(
             gl::ARRAY_BUFFER,
+            //(model.data.position.len() * 3 * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
+            //model.data.position.as_ptr() as *const gl::types::GLvoid,
             (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
             vertices.as_ptr() as *const gl::types::GLvoid,
             gl::STATIC_DRAW,
@@ -107,7 +131,6 @@ fn main() {
     let view_location = get_uniform_location(shader_program, "view");
     let projection_location = get_uniform_location(shader_program, "projection");
 
-    
     // Setup delta time
     let now = Instant::now();
 
@@ -117,7 +140,11 @@ fn main() {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            model_matrix = Mat4::from_translation(Vec3::new(0.0, 0.0, now.elapsed().as_secs_f32().sin()*2.0-3.0));
+            model_matrix = Mat4::from_translation(Vec3::new(
+                0.0,
+                0.0,
+                now.elapsed().as_secs_f32().sin() * 2.0 - 3.0,
+            ));
             gl::UniformMatrix4fv(
                 model_location,
                 1,
@@ -139,7 +166,7 @@ fn main() {
 
             gl::UseProgram(shader_program);
             gl::BindVertexArray(vao);
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            gl::DrawArrays(gl::TRIANGLES, 0, vertices.len() as i32);
         }
         // Swap front and back buffers
         window.swap_buffers();
