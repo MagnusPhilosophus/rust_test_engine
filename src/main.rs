@@ -2,28 +2,16 @@ extern crate gl;
 extern crate glfw;
 
 use std::time::Instant;
+use std::ops::Index;
 
 use glfw::{Action, Context, Key};
 mod render_gl;
 use crate::render_gl::*;
 use glam::*;
-use obj::Obj;
+use assimp::import::Importer;
 
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 600;
-
-fn extract_indices(model: &Obj) -> Vec<u32> {
-    let mut data: Vec<u32> = vec![];
-    for poly in model.data.objects[0].groups[0].polys.clone() {
-        for index in &poly.0 {
-            println!("{:?}", index);
-            data.push(index.0 as u32);
-            data.push(index.1.unwrap() as u32);
-            data.push(index.2.unwrap() as u32);
-        }
-    }
-    data
-}
 
 fn main() {
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
@@ -53,22 +41,56 @@ fn main() {
     }
 
     // Loading model
-    let model = Obj::load("./src/assets/model1.obj").unwrap();
+    let mut importer = Importer::new();
+    importer.triangulate(true);
+    use assimp::import::structs::PrimitiveType::{Point, Line, Triangle};
+    use assimp::import::structs::SortByPrimitiveType;
+    importer.sort_by_primitive_type(|args: &mut SortByPrimitiveType| {
+        args.enable = true;
+        args.remove = vec![Line, Point];
+    });
+    let scene = importer.read_file("./src/assets/model1.obj").unwrap();
+
+    let mesh = scene.mesh(0).unwrap();
+    for vertex in  mesh.vertex_iter(){
+        println!("{:?}", vertex);
+    }
+    let indices = mesh.face_iter().map(|face| (face.index(0).clone(), face.index(1).clone(), face.index(2).clone())).collect::<Vec<_>>();
+    for index in indices{
+        println!("{:?}", index);
+    }
+
     //let indices = extract_indices(&model);
-    let vertices: [f32; 18] = [
-         0.5,  0.5, 0.0,  // top right
-         0.5, -0.5, 0.0,  // bottom right
-        -0.5,  0.5, 0.0,  // top left 
-         0.5, -0.5, 0.0,  // bottom right
-        -0.5, -0.5, 0.0,  // bottom left
-        -0.5,  0.5, 0.0,   // top left
+    /*
+    let vertices: [f32; 12] = [
+        0.5, 0.5, 0.0, // top right
+        0.5, -0.5, 0.0, // bottom right
+        -0.5, -0.5, 0.0, // bottom left
+        -0.5, 0.5, 0.0, // top left
+    ];
+    let indices: [u32; 6] = [
+        0, 1, 3, // first triangle
+        1, 2, 3, // second triangle
+    ];
+    */
+    let vertices: [f32; 12] = [
+        -1.0, 0.0,  1.0,
+         1.0, 0.0,  1.0,
+         1.0, 0.0, -1.0,
+        -1.0, 0.0, -1.0,
+    ];
+    let indices: [u32; 6] = [
+        0, 1, 2,
+        0, 2, 3,
     ];
 
     // Create a Vertex Buffer Object (VBO) and Vertex Array Object (VAO) for the triangle
     let mut vbo = 0;
+    let mut ebo = 0;
     let mut vao = 0;
     unsafe {
         gl::GenBuffers(1, &mut vbo);
+        gl::GenBuffers(1, &mut ebo);
         gl::GenVertexArrays(1, &mut vao);
 
         gl::BindVertexArray(vao);
@@ -76,10 +98,16 @@ fn main() {
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
         gl::BufferData(
             gl::ARRAY_BUFFER,
-            //(model.data.position.len() * 3 * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-            //model.data.position.as_ptr() as *const gl::types::GLvoid,
             (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
             vertices.as_ptr() as *const gl::types::GLvoid,
+            gl::STATIC_DRAW,
+        );
+
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+        gl::BufferData(
+            gl::ELEMENT_ARRAY_BUFFER,
+            (indices.len() * std::mem::size_of::<u32>()) as gl::types::GLsizeiptr,
+            indices.as_ptr() as *const gl::types::GLvoid,
             gl::STATIC_DRAW,
         );
 
@@ -140,11 +168,14 @@ fn main() {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            model_matrix = Mat4::from_translation(Vec3::new(
-                0.0,
-                0.0,
-                now.elapsed().as_secs_f32().sin() * 2.0 - 3.0,
-            ));
+            model_matrix = Mat4::from_rotation_translation(
+                Quat::from_rotation_x(now.elapsed().as_secs_f32()),//now.elapsed().as_secs_f32().sin()),
+                Vec3::new(
+                    0.0,
+                    0.0,
+                    -5.0, //now.elapsed().as_secs_f32().sin() * 2.0 - 3.0,
+                ),
+            );
             gl::UniformMatrix4fv(
                 model_location,
                 1,
@@ -166,7 +197,13 @@ fn main() {
 
             gl::UseProgram(shader_program);
             gl::BindVertexArray(vao);
-            gl::DrawArrays(gl::TRIANGLES, 0, vertices.len() as i32);
+            //gl::DrawArrays(gl::TRIANGLES, 0, vertices.len() as i32);
+            gl::DrawElements(
+                gl::TRIANGLES,
+                indices.len() as i32,
+                gl::UNSIGNED_INT,
+                std::ptr::null(),
+            );
         }
         // Swap front and back buffers
         window.swap_buffers();

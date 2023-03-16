@@ -10,6 +10,7 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
+assimp = "0.3.1"
 gl = "0.14.0"
 glam = "0.23.0"
 glfw = "0.51.0"
