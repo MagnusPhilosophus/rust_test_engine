@@ -1,1 +1,2 @@
 # myConfig
+./config.sh
