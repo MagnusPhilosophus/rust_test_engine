@@ -1,14 +1,16 @@
 extern crate gl;
 extern crate glfw;
 
-use std::time::Instant;
 use std::ops::Index;
+use std::time::Instant;
 
 use glfw::{Action, Context, Key};
 mod render_gl;
 use crate::render_gl::*;
-use glam::*;
 use assimp::import::Importer;
+use assimp::import::structs::PrimitiveType::{Line, Point};
+use assimp::import::structs::SortByPrimitiveType;
+use glam::*;
 
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 600;
@@ -38,51 +40,31 @@ fn main() {
 
     unsafe {
         gl::Viewport(0, 0, WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32);
+        gl::Enable(gl::DEPTH_TEST);
     }
 
     // Loading model
     let mut importer = Importer::new();
     importer.triangulate(true);
-    use assimp::import::structs::PrimitiveType::{Point, Line, Triangle};
-    use assimp::import::structs::SortByPrimitiveType;
     importer.sort_by_primitive_type(|args: &mut SortByPrimitiveType| {
         args.enable = true;
         args.remove = vec![Line, Point];
     });
-    let scene = importer.read_file("./src/assets/model1.obj").unwrap();
+    let scene = importer.read_file("./src/assets/monkey.obj").unwrap();
 
     let mesh = scene.mesh(0).unwrap();
-    for vertex in  mesh.vertex_iter(){
-        println!("{:?}", vertex);
+    let mut vertices: Vec<[f32; 3]> = vec![];
+    for vertex in mesh.vertex_iter() {
+        vertices.push(<[f32; 3]>::from(vertex));
     }
-    let indices = mesh.face_iter().map(|face| (face.index(0).clone(), face.index(1).clone(), face.index(2).clone())).collect::<Vec<_>>();
-    for index in indices{
-        println!("{:?}", index);
-    }
+    let vertices = vertices.into_iter().flatten().collect::<Vec<_>>();
 
-    //let indices = extract_indices(&model);
-    /*
-    let vertices: [f32; 12] = [
-        0.5, 0.5, 0.0, // top right
-        0.5, -0.5, 0.0, // bottom right
-        -0.5, -0.5, 0.0, // bottom left
-        -0.5, 0.5, 0.0, // top left
-    ];
-    let indices: [u32; 6] = [
-        0, 1, 3, // first triangle
-        1, 2, 3, // second triangle
-    ];
-    */
-    let vertices: [f32; 12] = [
-        -1.0, 0.0,  1.0,
-         1.0, 0.0,  1.0,
-         1.0, 0.0, -1.0,
-        -1.0, 0.0, -1.0,
-    ];
-    let indices: [u32; 6] = [
-        0, 1, 2,
-        0, 2, 3,
-    ];
+    let mut indices: Vec<u32> = vec![];
+    for face in mesh.face_iter(){
+        indices.push(face.index(0).clone());
+        indices.push(face.index(1).clone());
+        indices.push(face.index(2).clone());
+    }
 
     // Create a Vertex Buffer Object (VBO) and Vertex Array Object (VAO) for the triangle
     let mut vbo = 0;
@@ -166,14 +148,12 @@ fn main() {
     while !window.should_close() {
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             model_matrix = Mat4::from_rotation_translation(
-                Quat::from_rotation_x(now.elapsed().as_secs_f32()),//now.elapsed().as_secs_f32().sin()),
+                Quat::from_rotation_y(now.elapsed().as_secs_f32()*2.0), //now.elapsed().as_secs_f32().sin()),
                 Vec3::new(
-                    0.0,
-                    0.0,
-                    -5.0, //now.elapsed().as_secs_f32().sin() * 2.0 - 3.0,
+                    0.0, 0.0, -5.0, //now.elapsed().as_secs_f32().sin() * 2.0 - 3.0,
                 ),
             );
             gl::UniformMatrix4fv(
