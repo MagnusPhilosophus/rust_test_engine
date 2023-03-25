@@ -15,81 +15,13 @@ use camera::*;
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 600;
 
-/*
-const YAW: f32 = -90.0;
-const PITCH: f32 = 0.0;
-const SPEED: f32 = 2.5;
-const SENSITIVITY: f32 = 0.002;
-const ZOOM: f32 = 45.0;
-const WORLD_UP: Vec3 = Vec3::new(0.0, 1.0, 0.0); 
-
-enum Direction {
-    Forward,
-    Backward,
-    Left,
-    Right,
-}
-
-struct Camera {
-    position: Vec3,
-    direction: Vec3,
-    up: Vec3,
-    right: Vec3,
-    yaw: f32,
-    pitch: f32,
-}
-
-impl Camera {
-    fn new(position: Vec3) -> Self {
-        let direction = Vec3::new(0.0, 0.0, -1.0);
-        let right = WORLD_UP.cross(direction).normalize();
-        let up = direction.cross(right);
-
-        Self {
-            position: position,
-            direction: direction,
-            up: up,
-            right: right,
-            yaw: YAW,
-            pitch: PITCH,
-        }
-    }
-    fn get_view_matrix(&self) -> Mat4 {
-        Mat4::look_at_rh(self.position, self.position + self.direction, self.up)
-    }
-    fn process_keyboard(&mut self, direction: Direction, delta: f32) {
-        let velocity = SPEED * delta;
-        match direction {
-            Direction::Forward => self.position += self.direction * velocity,
-            Direction::Backward => self.position -= self.direction * velocity,
-            Direction::Left => self.position += self.right * velocity,
-            Direction::Right => self.position -= self.right * velocity,
-        }
-    }
-    fn process_mouse(&mut self, mut xoffset: f32, mut yoffset: f32) {
-        xoffset *= SENSITIVITY;
-        yoffset *= SENSITIVITY;
-        self.yaw += xoffset;
-        self.pitch -= yoffset;
-        self.pitch = self.pitch.clamp(-89.9, 89.9);
-        self.update();
-    }
-    fn update(&mut self) {
-        self.direction.x = self.yaw.cos() * self.pitch.cos();
-        self.direction.y = self.pitch.sin();
-        self.direction.z = self.yaw.sin() * self.pitch.cos();
-        self.direction = self.direction.normalize();
-        self.right = WORLD_UP.cross(self.direction).normalize();
-        self.up = self.direction.cross(self.right);
-    }
-}
-*/
 fn main() {
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
     glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(
         glfw::OpenGlProfileHint::Core,
     ));
+    /*
     let (mut window, events) = glfw
         .create_window(
             WINDOW_WIDTH,
@@ -98,6 +30,11 @@ fn main() {
             glfw::WindowMode::Windowed,
         )
         .expect("Failed to create GLFW window.");
+    */
+    let (mut window, events) = glfw.clone().with_primary_monitor(|_, m| {
+        glfw.create_window(WINDOW_WIDTH, WINDOW_HEIGHT, "Hello this is window",
+            m.map_or(glfw::WindowMode::Windowed, |m| glfw::WindowMode::FullScreen(m)))
+    }).expect("Failed to create GLFW window.");
 
     // Make the window's context current
     window.make_current();
@@ -106,6 +43,7 @@ fn main() {
     window.set_mouse_button_polling(true);
     window.set_cursor_mode(glfw::CursorMode::Hidden);
     window.set_cursor_pos(WINDOW_WIDTH as f64 / 2.0, WINDOW_HEIGHT as f64 / 2.0);
+
 
     gl::load_with(|s| window.get_proc_address(s) as *const _);
 
@@ -142,19 +80,23 @@ fn main() {
     // Setup delta time
     let mut old_time = Instant::now();
 
-    let mut mesh = Mesh::new("./src/assets/teapot.obj");
+    let mut teapot = Mesh::new("./src/assets/teapot.obj");
+    let mut cube = Mesh::new("./src/assets/model.obj");
     let mut camera = Camera::new(Vec3::new(0.0, 0.0, 0.0));
 
     let mut forward: bool = false;
     let mut backward: bool = false;
     let mut left: bool = false;
     let mut right: bool = false;
+    let mut up: bool = false;
+    let mut down: bool = false;
 
     // Loop until the user closes the window
     while !window.should_close() {
         let delta = old_time.elapsed().as_secs_f32();
         old_time = Instant::now();
-        let model_matrix = Mat4::from_translation(Vec3::new(0.0, 0.0, -30.0));
+        let teapot_model_matrix = Mat4::from_translation(Vec3::new(0.0, 0.0, -3.0));
+        let cube_model_matrix = Mat4::from_translation(Vec3::new(3.0, 0.0, -3.0));
 
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
@@ -163,7 +105,7 @@ fn main() {
                 model_location,
                 1,
                 gl::FALSE,
-                model_matrix.to_cols_array().as_ptr(),
+                teapot_model_matrix.to_cols_array().as_ptr(),
             );
             gl::UniformMatrix4fv(
                 view_location,
@@ -177,9 +119,15 @@ fn main() {
                 gl::FALSE,
                 projection_matrix.to_cols_array().as_ptr(),
             );
-
+            teapot.draw(shader_program);
+            gl::UniformMatrix4fv(
+                model_location,
+                1,
+                gl::FALSE,
+                cube_model_matrix.to_cols_array().as_ptr(),
+            );
+            cube.draw(shader_program);
         }
-        mesh.draw(shader_program);
         window.swap_buffers();
         glfw.poll_events();
 
@@ -189,7 +137,6 @@ fn main() {
                     window.set_should_close(true)
                 }
                 glfw::WindowEvent::CursorPos(xpos, ypos) => {
-                    //println!("{} {}", xpos - WINDOW_WIDTH as f64 / 2.0, ypos - WINDOW_HEIGHT as f64 / 2.0);
                     camera.process_mouse(xpos as f32 - WINDOW_WIDTH as f32 / 2.0, ypos as f32 - WINDOW_HEIGHT as f32 / 2.0);
                     window.set_cursor_pos(WINDOW_WIDTH as f64 / 2.0, WINDOW_HEIGHT as f64 / 2.0);
                 }
@@ -217,6 +164,18 @@ fn main() {
                 glfw::WindowEvent::Key(Key::D, _, Action::Release, _) => {
                     right = false;
                 }
+                glfw::WindowEvent::Key(Key::Space, _, Action::Press, _) => {
+                    up = true;
+                }
+                glfw::WindowEvent::Key(Key::Space, _, Action::Release, _) => {
+                    up = false;
+                }
+                glfw::WindowEvent::Key(Key::LeftShift, _, Action::Press, _) => {
+                    down = true;
+                }
+                glfw::WindowEvent::Key(Key::LeftShift, _, Action::Release, _) => {
+                    down = false;
+                }
                 _ => {}
             }
         }
@@ -231,6 +190,12 @@ fn main() {
         }
         if right {
             camera.process_keyboard(Direction::Right, delta);
+        }
+        if up {
+            camera.process_keyboard(Direction::Up, delta);
+        }
+        if down {
+            camera.process_keyboard(Direction::Down, delta);
         }
     }
 

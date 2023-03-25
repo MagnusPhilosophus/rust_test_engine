@@ -12,6 +12,8 @@ pub enum Direction {
     Backward,
     Left,
     Right,
+    Up,
+    Down,
 }
 
 pub struct Camera {
@@ -48,14 +50,16 @@ impl Camera {
             Direction::Backward => self.position -= self.direction * velocity,
             Direction::Left => self.position += self.right * velocity,
             Direction::Right => self.position -= self.right * velocity,
+            Direction::Up => self.position += self.up * velocity,
+            Direction::Down => self.position -= self.up * velocity,
         }
     }
     pub fn process_mouse(&mut self, mut xoffset: f32, mut yoffset: f32) {
         xoffset *= SENSITIVITY;
         yoffset *= SENSITIVITY;
+        self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.yaw += xoffset;
         self.pitch -= yoffset;
-        self.pitch = self.pitch.clamp(-89.9, 89.9);
         self.update();
     }
     fn update(&mut self) {
