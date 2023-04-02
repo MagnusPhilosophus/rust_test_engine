@@ -64,6 +64,7 @@ dependencies = [
  "glam",
  "glfw",
  "obj",
+ "perlin2d",
 ]
 
 [[package]]
@@ -158,6 +159,12 @@ checksum = "915b1b472bc21c53464d6c8461c9d3af805ba1ef837e1cac254428f4a77177b1"
 dependencies = [
  "malloc_buf",
 ]
+
+[[package]]
+name = "perlin2d"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb6c71cfd92099c43062f059494786cdcbd9cb4dab61389098362b241071cde0"
 
 [[package]]
 name = "pkg-config"

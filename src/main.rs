@@ -9,6 +9,8 @@ use crate::render_gl::*;
 use glam::*;
 mod simple_mesh;
 use simple_mesh::Mesh;
+mod terrain;
+use terrain::Terrain;
 mod camera;
 use camera::*;
 
@@ -21,16 +23,6 @@ fn main() {
     glfw.window_hint(glfw::WindowHint::OpenGlProfile(
         glfw::OpenGlProfileHint::Core,
     ));
-    /*
-    let (mut window, events) = glfw
-        .create_window(
-            WINDOW_WIDTH,
-            WINDOW_HEIGHT,
-            "Game",
-            glfw::WindowMode::Windowed,
-        )
-        .expect("Failed to create GLFW window.");
-    */
     let (mut window, events) = glfw.clone().with_primary_monitor(|_, m| {
         glfw.create_window(WINDOW_WIDTH, WINDOW_HEIGHT, "Hello this is window",
             m.map_or(glfw::WindowMode::Windowed, |m| glfw::WindowMode::FullScreen(m)))
@@ -80,8 +72,9 @@ fn main() {
     // Setup delta time
     let mut old_time = Instant::now();
 
+    let mut terrain = Terrain::new();
     let mut teapot = Mesh::new("./src/assets/teapot.obj");
-    let mut cube = Mesh::new("./src/assets/model.obj");
+    let mut cube = Mesh::new("./src/assets/lenin.obj");
     let mut camera = Camera::new(Vec3::new(0.0, 0.0, 0.0));
 
     let mut forward: bool = false;
@@ -97,6 +90,7 @@ fn main() {
         old_time = Instant::now();
         let teapot_model_matrix = Mat4::from_translation(Vec3::new(0.0, 0.0, -3.0));
         let cube_model_matrix = Mat4::from_translation(Vec3::new(3.0, 0.0, -3.0));
+        let terrain_model_matrix = Mat4::from_scale_rotation_translation(Vec3::new(1.0, 1.0, 1.0), Quat::IDENTITY, Vec3::new(0.0, 1.0, 0.0));
 
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
@@ -127,6 +121,13 @@ fn main() {
                 cube_model_matrix.to_cols_array().as_ptr(),
             );
             cube.draw(shader_program);
+            gl::UniformMatrix4fv(
+                model_location,
+                1,
+                gl::FALSE,
+                terrain_model_matrix.to_cols_array().as_ptr(),
+            );
+            terrain.draw(shader_program);
         }
         window.swap_buffers();
         glfw.poll_events();
