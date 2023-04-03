@@ -5,12 +5,26 @@ use assimp::import::structs::SortByPrimitiveType;
 use assimp::import::Importer;
 use glam::*;
 
+#[repr(C)]
+struct Vertex {
+    position: Vec3,
+    normal: Vec3,
+    tex_cords: Vec2,
+}
+
+#[repr(C)]
+struct Texture {
+    id: u32,
+    ttype: String,
+}
+
 pub struct Mesh {
     vao: u32,
     vbo: u32,
     ebo: u32,
-    vertices: Vec<f32>,
+    vertices: Vec<Vertex>,
     indices: Vec<u32>,
+    textures: Vec<Texture>,
 }
 
 impl Mesh {
@@ -21,10 +35,12 @@ impl Mesh {
             ebo: 0,
             vertices: vec![],
             indices: vec![],
+            textures: vec![],
         };
         // Loading model
         let mut importer = Importer::new();
         importer.triangulate(true);
+        importer.flip_uvs(true);
         importer.sort_by_primitive_type(|args: &mut SortByPrimitiveType| {
             args.enable = true;
             args.remove = vec![Line, Point];
@@ -32,11 +48,9 @@ impl Mesh {
         let scene = importer.read_file(path).unwrap();
 
         let a_mesh = scene.mesh(0).unwrap();
-        let mut vertices: Vec<[f32; 3]> = vec![];
         for vertex in a_mesh.vertex_iter() {
-            vertices.push(<[f32; 3]>::from(vertex));
+            mesh.vertices.push(Vertex {position: Vec3::from(<[f32; 3]>::from(vertex)), normal: Vec3::default(), tex_cords: Vec2::default()});
         }
-        mesh.vertices = vertices.into_iter().flatten().collect::<Vec<_>>();
         for face in a_mesh.face_iter() {
             mesh.indices.push(face.index(0).clone());
             mesh.indices.push(face.index(1).clone());
@@ -52,7 +66,7 @@ impl Mesh {
             gl::BindBuffer(gl::ARRAY_BUFFER, mesh.vbo);
             gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (mesh.vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
+                (mesh.vertices.len() * std::mem::size_of::<Vertex>()) as gl::types::GLsizeiptr,
                 mesh.vertices.as_ptr() as *const gl::types::GLvoid,
                 gl::STATIC_DRAW,
             );
@@ -65,15 +79,33 @@ impl Mesh {
                 gl::STATIC_DRAW,
             );
 
+            gl::EnableVertexAttribArray(0);
             gl::VertexAttribPointer(
                 0,
                 3,
                 gl::FLOAT,
                 gl::FALSE,
-                3 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                std::mem::size_of::<Vertex>() as gl::types::GLsizei,
                 std::ptr::null(),
             );
-            gl::EnableVertexAttribArray(0);
+            gl::EnableVertexAttribArray(1);
+            gl::VertexAttribPointer(
+                1,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                std::mem::size_of::<Vertex>() as gl::types::GLsizei,
+                (std::mem::size_of::<f32>()*3) as *const gl::types::GLvoid,
+            );
+            gl::EnableVertexAttribArray(2);
+            gl::VertexAttribPointer(
+                2,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                std::mem::size_of::<Vertex>() as gl::types::GLsizei,
+                (std::mem::size_of::<f32>()*6) as *const gl::types::GLvoid,
+            );
 
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
             gl::BindVertexArray(0);
